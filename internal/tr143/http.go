@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -44,6 +45,35 @@ type HTTPHandler struct {
 	cfg HTTPConfig
 	log *slog.Logger
 	sem chan struct{}
+
+	downloads     atomic.Uint64
+	uploads       atomic.Uint64
+	rejects       atomic.Uint64
+	bytesSent     atomic.Uint64
+	bytesReceived atomic.Uint64
+	active        atomic.Int64
+}
+
+// HTTPStats is a snapshot of transfer counters.
+type HTTPStats struct {
+	Downloads       uint64
+	Uploads         uint64
+	Rejects         uint64
+	BytesSent       uint64
+	BytesReceived   uint64
+	ActiveTransfers int64
+}
+
+// Stats returns a snapshot of the handler's counters.
+func (h *HTTPHandler) Stats() HTTPStats {
+	return HTTPStats{
+		Downloads:       h.downloads.Load(),
+		Uploads:         h.uploads.Load(),
+		Rejects:         h.rejects.Load(),
+		BytesSent:       h.bytesSent.Load(),
+		BytesReceived:   h.bytesReceived.Load(),
+		ActiveTransfers: h.active.Load(),
+	}
 }
 
 // NewHTTPHandler returns a handler implementing the TR-143 HTTP server side.
@@ -88,23 +118,45 @@ func (h *HTTPHandler) peerAllowed(r *http.Request) bool {
 // acquire reserves a transfer slot, or fails the request with 503 when the
 // server is at its concurrent test limit (admission control; TR-143 Section 4
 // notes that concurrent tests skew each other's results).
-func (h *HTTPHandler) acquire(w http.ResponseWriter) bool {
-	if h.sem == nil {
-		return true
+func (h *HTTPHandler) acquire(w http.ResponseWriter, r *http.Request) bool {
+	if h.sem != nil {
+		select {
+		case h.sem <- struct{}{}:
+		default:
+			h.rejects.Add(1)
+			h.log.Warn("test rejected",
+				"test", "http", "reason", "capacity", "peer", r.RemoteAddr, "ref", r.URL.Query().Get("ref"))
+			http.Error(w, "test capacity exceeded", http.StatusServiceUnavailable)
+			return false
+		}
 	}
-	select {
-	case h.sem <- struct{}{}:
-		return true
-	default:
-		http.Error(w, "test capacity exceeded", http.StatusServiceUnavailable)
-		return false
-	}
+	h.active.Add(1)
+	return true
 }
 
 func (h *HTTPHandler) release() {
+	h.active.Add(-1)
 	if h.sem != nil {
 		<-h.sem
 	}
+}
+
+// event emits the per-test completion record. The "ref" field carries the
+// correlation token the operator may embed in the provisioned URL as a
+// "ref" query parameter.
+func (h *HTTPHandler) event(r *http.Request, test string, complete bool, bytes int64, start time.Time) {
+	msg := "test complete"
+	if !complete {
+		// Client-side teardown is the normal end of time-based tests and
+		// of tests that hit their CPE-side timeout; record, do not alarm.
+		msg = "test ended by client"
+	}
+	h.log.Info(msg,
+		"test", test,
+		"peer", r.RemoteAddr,
+		"ref", r.URL.Query().Get("ref"),
+		"bytes", bytes,
+		"duration_ms", time.Since(start).Milliseconds())
 }
 
 func (h *HTTPHandler) download(w http.ResponseWriter, r *http.Request) {
@@ -202,7 +254,7 @@ func (h *HTTPHandler) downloadSized(w http.ResponseWriter, r *http.Request, size
 		http.Error(w, "requested size exceeds server limit", http.StatusForbidden)
 		return
 	}
-	if !h.acquire(w) {
+	if !h.acquire(w, r) {
 		return
 	}
 	defer h.release()
@@ -216,6 +268,11 @@ func (h *HTTPHandler) downloadSized(w http.ResponseWriter, r *http.Request, size
 
 	start := time.Now()
 	var sent int64
+	defer func() {
+		h.downloads.Add(1)
+		h.bytesSent.Add(uint64(sent))
+		h.event(r, "http_download", sent == size, sent, start)
+	}()
 	for sent < size {
 		n := int64(len(payloadBlock))
 		if remaining := size - sent; remaining < n {
@@ -226,13 +283,9 @@ func (h *HTTPHandler) downloadSized(w http.ResponseWriter, r *http.Request, size
 		if err != nil {
 			// Client teardown mid-transfer is normal (timeouts, aborted
 			// tests); not a server error.
-			h.log.Debug("download aborted by client",
-				"peer", r.RemoteAddr, "sent", sent, "size", size)
 			return
 		}
 	}
-	h.log.Info("download complete",
-		"peer", r.RemoteAddr, "bytes", sent, "duration", time.Since(start))
 }
 
 // downloadTimed streams generated data for at least the requested duration
@@ -245,7 +298,7 @@ func (h *HTTPHandler) downloadTimed(w http.ResponseWriter, r *http.Request, seco
 		http.Error(w, "requested duration exceeds server limit", http.StatusForbidden)
 		return
 	}
-	if !h.acquire(w) {
+	if !h.acquire(w, r) {
 		return
 	}
 	defer h.release()
@@ -259,19 +312,20 @@ func (h *HTTPHandler) downloadTimed(w http.ResponseWriter, r *http.Request, seco
 	start := time.Now()
 	deadline := start.Add(d)
 	var sent int64
+	complete := true
 	for time.Now().Before(deadline) {
 		n, err := w.Write(payloadBlock)
 		sent += int64(n)
 		if err != nil {
 			// Expected end of a generic-mode time-based test: the client
 			// resets the connection when its duration elapses (A.6).
-			h.log.Debug("timed download ended by client",
-				"peer", r.RemoteAddr, "sent", sent, "elapsed", time.Since(start))
-			return
+			complete = false
+			break
 		}
 	}
-	h.log.Info("timed download complete",
-		"peer", r.RemoteAddr, "bytes", sent, "duration", time.Since(start))
+	h.downloads.Add(1)
+	h.bytesSent.Add(uint64(sent))
+	h.event(r, "http_download_timed", complete, sent, start)
 }
 
 // upload accepts a test upload of arbitrary length, discards the body, and
@@ -279,21 +333,21 @@ func (h *HTTPHandler) downloadTimed(w http.ResponseWriter, r *http.Request, seco
 // client's EOMTime (TR-143 A.5). Time-based uploads end with the client
 // closing the connection mid-body, which needs no response.
 func (h *HTTPHandler) upload(w http.ResponseWriter, r *http.Request) {
-	if !h.acquire(w) {
+	if !h.acquire(w, r) {
 		return
 	}
 	defer h.release()
 
 	start := time.Now()
 	n, err := io.Copy(io.Discard, r.Body)
+	h.uploads.Add(1)
+	h.bytesReceived.Add(uint64(n))
 	if err != nil {
-		h.log.Debug("upload ended early",
-			"peer", r.RemoteAddr, "bytes", n, "elapsed", time.Since(start))
+		h.event(r, "http_upload", false, n, start)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	h.log.Info("upload complete",
-		"peer", r.RemoteAddr, "bytes", n, "duration", time.Since(start))
+	h.event(r, "http_upload", true, n, start)
 }
 
 func (h *HTTPHandler) index(w http.ResponseWriter) {

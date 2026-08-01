@@ -2,6 +2,7 @@ package udpst
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"math/rand/v2"
 	"net"
@@ -306,6 +307,7 @@ func (s *session) subIntervalMbps(st SubIntStats) float64 {
 func (s *session) runUpstream() {
 	rc := s.newRateController()
 	now := time.Now()
+	testStart := now
 	a := newRxAccounting(now)
 	br := s.batchConn()
 
@@ -407,12 +409,13 @@ func (s *session) runUpstream() {
 	if mbps := s.subIntervalMbps(a.saved); mbps > maxMbps {
 		maxMbps = mbps
 	}
-	s.logSummary("upstream", maxMbps, totalDG, totalLoss)
+	s.logSummary("upstream", testStart, maxMbps, totalDG, totalLoss)
 }
 
 // runDownstream generates the load stream, adjusting its rate from the
 // client's status feedback.
 func (s *session) runDownstream() {
+	testStart := time.Now()
 	rc := s.newRateController()
 	var (
 		index   atomic.Int64
@@ -490,15 +493,27 @@ func (s *session) runDownstream() {
 	}
 	close(done)
 	<-sendEnd
-	s.logSummary("downstream", maxMbps, totalDG, totalLoss)
+	s.logSummary("downstream", testStart, maxMbps, totalDG, totalLoss)
 }
 
-func (s *session) logSummary(direction string, maxMbps float64, datagrams, loss uint64) {
+func (s *session) logSummary(direction string, start time.Time, maxMbps float64, datagrams, loss uint64) {
+	if direction == "upstream" {
+		s.srv.testsUpstream.Add(1)
+	} else {
+		s.srv.testsDownstream.Add(1)
+	}
+	delivered := 100.0
+	if datagrams+loss > 0 {
+		delivered = float64(datagrams) * 100 / float64(datagrams+loss)
+	}
 	s.log.Info("test complete",
+		"test", "tr471",
 		"direction", direction,
 		"max_mbps", int(maxMbps),
 		"datagrams", datagrams,
-		"loss", loss)
+		"loss", loss,
+		"delivered_pct", fmt.Sprintf("%.2f", delivered),
+		"duration_ms", time.Since(start).Milliseconds())
 }
 
 // echoState carries the most recent status PDU timestamp for RTT echoing.

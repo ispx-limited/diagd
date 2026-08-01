@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/netip"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -69,6 +70,11 @@ type Server struct {
 	nextPort int
 	closed   bool
 	wg       sync.WaitGroup
+
+	testsUpstream   atomic.Uint64
+	testsDownstream atomic.Uint64
+	setupAccepts    atomic.Uint64
+	setupRejects    atomic.Uint64
 }
 
 // Stats is a snapshot of server load, suitable for health reporting.
@@ -76,6 +82,10 @@ type Stats struct {
 	ActiveSessions          int
 	UpstreamMbpsAllocated   int
 	DownstreamMbpsAllocated int
+	TestsUpstream           uint64
+	TestsDownstream         uint64
+	SetupAccepts            uint64
+	SetupRejects            uint64
 }
 
 // NewServer wraps an already-bound UDP control socket (conventionally port
@@ -105,6 +115,10 @@ func (s *Server) Stats() Stats {
 		ActiveSessions:          s.sessions,
 		UpstreamMbpsAllocated:   s.usedUS,
 		DownstreamMbpsAllocated: s.usedDS,
+		TestsUpstream:           s.testsUpstream.Load(),
+		TestsDownstream:         s.testsDownstream.Load(),
+		SetupAccepts:            s.setupAccepts.Load(),
+		SetupRejects:            s.setupRejects.Load(),
 	}
 }
 
@@ -295,8 +309,12 @@ func (s *Server) handleSetup(req *SetupPDU, raw []byte, peer netip.AddrPort) {
 }
 
 func (s *Server) sendSetupResponse(resp, req *SetupPDU, keys *sessionKeys, legacyKey []byte, peer netip.AddrPort) {
-	if resp.CmdResponse != SetupRespACKOK {
-		s.log.Info("setup rejected", "peer", peer, "code", resp.CmdResponse)
+	if resp.CmdResponse == SetupRespACKOK {
+		s.setupAccepts.Add(1)
+	} else {
+		s.setupRejects.Add(1)
+		s.log.Warn("test rejected",
+			"test", "tr471", "peer", peer, "code", resp.CmdResponse, "reason", rejectReason(resp.CmdResponse))
 	}
 	pdu := resp.marshal()
 	if req.ProtocolVer >= ProtocolVer && keys != nil {
@@ -307,6 +325,37 @@ func (s *Server) sendSetupResponse(resp, req *SetupPDU, keys *sessionKeys, legac
 		signPDU(legacyKey, pdu, setupAuthDigestOff)
 	}
 	s.conn.WriteToUDPAddrPort(pdu, peer)
+}
+
+// rejectReason names a setup rejection code for logs.
+func rejectReason(code uint8) string {
+	switch code {
+	case SetupRespBadVersion:
+		return "protocol version"
+	case SetupRespBadJumbo:
+		return "jumbo option mismatch"
+	case SetupRespAuthNC:
+		return "authentication not configured"
+	case SetupRespAuthReq:
+		return "authentication required"
+	case SetupRespAuthInv:
+		return "authentication mode invalid"
+	case SetupRespAuthFail:
+		return "authentication failed"
+	case SetupRespAuthTime:
+		return "authentication time window"
+	case SetupRespNoMaxBW:
+		return "bandwidth requirement missing"
+	case SetupRespCapExc:
+		return "capacity exceeded"
+	case SetupRespBadTMTU:
+		return "traditional MTU mismatch"
+	case SetupRespMCInvPar:
+		return "multi-connection parameters"
+	case SetupRespConnFail:
+		return "connection allocation"
+	}
+	return "unknown"
 }
 
 func (s *Server) reserveBandwidth(upstream bool, mbw int) bool {

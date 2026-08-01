@@ -34,14 +34,25 @@ func cmdServe(args []string) int {
 	maxBytes := fs.Int64("max-download-bytes", 0, "maximum size of a generated download in bytes, 0 for no limit")
 	maxSeconds := fs.Int("max-download-seconds", 0, "maximum duration of a time-based download, 0 for the TR-143 maximum of 999")
 	allowFlag := fs.String("allow", "", "comma-separated CIDRs allowed to run tests, empty to allow all")
+	opsAddr := fs.String("ops", ":9143", "operational HTTP listen address for /metrics and /healthz, empty to disable")
+	instance := fs.String("instance", "", "instance identifier stamped on logs and metrics, default is the hostname")
 	logLevel := fs.String("log-level", "info", "log level: debug, info, warn, error")
+	logFormat := fs.String("log-format", "text", "log format: text or json (json recommended for shipping test events)")
 	fs.Parse(args)
 
-	log, err := newLogger(*logLevel)
+	if *instance == "" {
+		if hn, err := os.Hostname(); err == nil {
+			*instance = hn
+		} else {
+			*instance = "diagd"
+		}
+	}
+	log, err := newLogger(*logLevel, *logFormat)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "diagd:", err)
 		return 2
 	}
+	log = log.With("instance", *instance)
 	allow, err := parseAllowList(*allowFlag)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "diagd:", err)
@@ -54,8 +65,9 @@ func cmdServe(args []string) int {
 	errc := make(chan error, 2)
 
 	var httpSrv *http.Server
+	var httpHandler *tr143.HTTPHandler
 	if *httpAddr != "" {
-		handler := tr143.NewHTTPHandler(tr143.HTTPConfig{
+		httpHandler = tr143.NewHTTPHandler(tr143.HTTPConfig{
 			MaxConcurrent:    *maxTransfers,
 			MaxDownloadBytes: *maxBytes,
 			MaxDuration:      time.Duration(*maxSeconds) * time.Second,
@@ -64,7 +76,7 @@ func cmdServe(args []string) int {
 		})
 		httpSrv = &http.Server{
 			Addr:              *httpAddr,
-			Handler:           handler,
+			Handler:           httpHandler,
 			ReadHeaderTimeout: 10 * time.Second,
 		}
 		go func() {
@@ -76,6 +88,7 @@ func cmdServe(args []string) int {
 	}
 
 	var echoConn *net.UDPConn
+	var echo *tr143.EchoServer
 	if *echoAddr != "" {
 		addr, err := net.ResolveUDPAddr("udp", *echoAddr)
 		if err != nil {
@@ -87,7 +100,7 @@ func cmdServe(args []string) int {
 			fmt.Fprintln(os.Stderr, "diagd:", err)
 			return 2
 		}
-		echo := tr143.NewEchoServer(echoConn, tr143.EchoConfig{Allow: allow, Log: log})
+		echo = tr143.NewEchoServer(echoConn, tr143.EchoConfig{Allow: allow, Log: log})
 		go func() {
 			log.Info("udp echo plus responder listening", "addr", *echoAddr)
 			if err := echo.Serve(); err != nil {
@@ -141,6 +154,29 @@ func cmdServe(args []string) int {
 		return 2
 	}
 
+	var opsSrv *http.Server
+	if *opsAddr != "" {
+		ops := &opsState{
+			instance: *instance,
+			version:  version,
+			started:  time.Now(),
+			httpH:    httpHandler,
+			echo:     echo,
+			tr471:    tr471Srv,
+		}
+		opsSrv = &http.Server{
+			Addr:              *opsAddr,
+			Handler:           ops.handler(),
+			ReadHeaderTimeout: 10 * time.Second,
+		}
+		go func() {
+			log.Info("ops server listening", "addr", *opsAddr)
+			if err := opsSrv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+				errc <- fmt.Errorf("ops server: %w", err)
+			}
+		}()
+	}
+
 	select {
 	case <-ctx.Done():
 		log.Info("shutting down")
@@ -160,15 +196,25 @@ func cmdServe(args []string) int {
 	if tr471Srv != nil {
 		tr471Srv.Close()
 	}
+	if opsSrv != nil {
+		opsSrv.Close()
+	}
 	return 0
 }
 
-func newLogger(level string) (*slog.Logger, error) {
+func newLogger(level, format string) (*slog.Logger, error) {
 	var l slog.Level
 	if err := l.UnmarshalText([]byte(level)); err != nil {
 		return nil, fmt.Errorf("invalid log level %q", level)
 	}
-	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: l})), nil
+	opts := &slog.HandlerOptions{Level: l}
+	switch format {
+	case "text":
+		return slog.New(slog.NewTextHandler(os.Stderr, opts)), nil
+	case "json":
+		return slog.New(slog.NewJSONHandler(os.Stderr, opts)), nil
+	}
+	return nil, fmt.Errorf("invalid log format %q", format)
 }
 
 // parseAllowList builds an allow function from comma-separated CIDRs.
