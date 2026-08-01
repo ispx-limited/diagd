@@ -37,6 +37,11 @@ tar xzf diagd_linux_amd64.tar.gz
 ./diagd_linux_amd64/diagd serve
 ```
 
+To install it as a service, `sudo ./diagd_linux_amd64/install.sh` puts the
+binary in `/usr/local/bin` and, on systemd machines, installs the service
+unit. Without systemd, run the binary under any supervisor; it is a plain
+foreground process.
+
 Or build from source with Go 1.25 or newer:
 
 ```
