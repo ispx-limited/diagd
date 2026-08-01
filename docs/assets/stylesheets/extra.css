@@ -1,0 +1,343 @@
+/* ============================================================
+   Site overlay styles for the mkdocs-shadcn theme: layout width,
+   code blocks, headings, and the home-page hero / card grid.
+
+   Colors are the ispx brand tokens, declared once in :root below
+   (names and values mirror the brand's ispx.css). Change colors
+   there, nowhere else.
+   ============================================================ */
+
+:root {
+  --ispx-primary-500: #E53935; /* primary brand red */
+  --ispx-primary-600: #C62828; /* hover/active */
+  --ispx-primary-700: #9B1C1C; /* pressed/darkest */
+  --ispx-primary-500-rgb: 229, 57, 53;
+
+  --ispx-neutral-900: #111111; /* headings, dark surfaces */
+  --ispx-neutral-700: #333333; /* body text, dark borders */
+  --ispx-neutral-500: #6B7280; /* secondary text */
+  --ispx-neutral-200: #E5E7EB; /* borders, light text on dark */
+
+  --ispx-success: #22C55E;
+  --ispx-success-rgb: 34, 197, 94;
+}
+
+/* ----------------------------- Width override ----------------------- */
+/* mkdocs-shadcn caps .container-wrapper via Tailwind's max-w-screen-*
+   utilities at every breakpoint. Blow them all away so the wrapper spans
+   the full viewport. The article inside is already w-full so content
+   widens with the wrapper. */
+
+.container-wrapper {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+/* The sidebar wrapper inherits container constraints; unbox it explicitly
+   so the sidebar+content grid uses the available width too. */
+[data-slot="sidebar-wrapper"] {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+/* The shadcn theme caps <article> at max-w-2xl (672px). Push that to
+   1200px, a comfortable line length for technical docs with code blocks.
+   Adjust this single value if you want it tighter/wider. */
+article {
+  max-width: 1200px !important;
+}
+
+.typography {
+  max-width: none !important;
+}
+
+footer {
+  display: none !important;
+}
+
+/* ============================================================
+   Code blocks. The shadcn theme only styles direct-child <pre>
+   (`article > pre`), but pymdownx wraps fenced blocks in
+   <div class="highlight"><pre>...</pre></div>, so the background
+   never lands. Restyle every <pre> + give it a visible card
+   look + room for a copy button.
+   ============================================================ */
+
+article pre,
+article .highlight pre,
+article .codehilite pre {
+  background: var(--ispx-neutral-900) !important;
+  color: var(--ispx-neutral-200) !important;
+  border: 1px solid var(--ispx-neutral-700);
+  border-radius: 10px !important;
+  padding: 1rem 1.1rem !important;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace !important;
+  font-size: 0.85rem !important;
+  line-height: 1.55 !important;
+  overflow-x: auto;
+  position: relative;
+}
+
+article pre code,
+article .highlight pre code,
+article .codehilite pre code {
+  color: inherit !important;
+  background: transparent !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+/* Inline code: a quieter chip, distinct from block code. */
+article code:not(pre code) {
+  background: rgba(var(--ispx-primary-500-rgb), 0.08) !important;
+  color: var(--ispx-primary-700);
+  border: 1px solid rgba(var(--ispx-primary-500-rgb), 0.18);
+  padding: 0.08rem 0.35rem !important;
+  border-radius: 5px !important;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace !important;
+  font-size: 0.82em !important;
+}
+
+/* Per-block copy button (injected by assets/js/copy-code.js). */
+.ispx-copy-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.55rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ispx-neutral-200);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 500;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 160ms ease, background-color 160ms ease, color 160ms ease;
+  z-index: 2;
+}
+
+article pre:hover .ispx-copy-btn,
+article .highlight:hover .ispx-copy-btn,
+article .codehilite:hover .ispx-copy-btn {
+  opacity: 1;
+}
+
+.ispx-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+.ispx-copy-btn[data-state="copied"] {
+  background: rgba(var(--ispx-success-rgb), 0.18);
+  border-color: rgba(var(--ispx-success-rgb), 0.4);
+  color: var(--ispx-success);
+  opacity: 1;
+}
+
+.ispx-copy-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* ============================================================
+   Heading polish — make h2 / h3 visually punchier than the
+   default shadcn typography. Accent bar on h2, accent dot on
+   h3, tighter weight + tracking.
+   ============================================================ */
+
+article #page-header h1 {
+  letter-spacing: -0.025em !important;
+  font-weight: 700 !important;
+}
+
+article .typography h2 {
+  position: relative;
+  padding-left: 1.1rem;
+  font-weight: 600 !important;
+  letter-spacing: -0.018em !important;
+  font-size: 1.6rem !important;
+  line-height: 1.25 !important;
+}
+
+article .typography h2::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.32em;
+  bottom: 0.32em;
+  width: 4px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--ispx-primary-500) 0%, var(--ispx-primary-600) 100%);
+}
+
+article .typography h3 {
+  position: relative;
+  padding-left: 0.95rem;
+  font-weight: 600 !important;
+  letter-spacing: -0.014em !important;
+  font-size: 1.18rem !important;
+  line-height: 1.3 !important;
+}
+
+article .typography h3::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--ispx-primary-500);
+  box-shadow: 0 0 0 3px rgba(var(--ispx-primary-500-rgb), 0.14);
+}
+
+article .typography h4 {
+  font-weight: 600 !important;
+  letter-spacing: -0.012em !important;
+  color: var(--ispx-neutral-500);
+  text-transform: none;
+  font-size: 1rem !important;
+}
+
+/* Permalink anchors, tone them down so they don't compete with the heading. */
+article .typography h2 a.headerlink,
+article .typography h3 a.headerlink,
+article .typography h4 a.headerlink {
+  opacity: 0;
+  transition: opacity 160ms ease;
+  margin-left: 0.4rem;
+  font-weight: 400;
+}
+
+article .typography h2:hover a.headerlink,
+article .typography h3:hover a.headerlink,
+article .typography h4:hover a.headerlink {
+  opacity: 0.55;
+}
+
+/* ----------------------------- Hero block ---------------------------- */
+
+.ispx-home {
+  margin: 1.2rem 0 2.4rem;
+  padding: 2rem 1.5rem 2.4rem;
+}
+
+.ispx-home__copy {
+  max-width: 36rem;
+}
+
+.ispx-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.ispx-kicker {
+  margin: 0 0 1rem;
+  font-size: clamp(1.6rem, 3.4vw, 2.6rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.018em;
+}
+
+.ispx-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1.4rem;
+}
+
+.ispx-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.1rem;
+  border-radius: 8px;
+  border: 1px solid currentColor;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+.ispx-btn--primary {
+  color: #ffffff;
+  background: var(--ispx-primary-500);
+  border-color: var(--ispx-primary-500);
+}
+
+.ispx-btn--primary:hover {
+  background: var(--ispx-primary-600);
+  border-color: var(--ispx-primary-600);
+  transform: translateY(-1px);
+}
+
+.ispx-btn--ghost {
+  color: inherit;
+  background: transparent;
+  border-color: rgba(127, 127, 127, 0.35);
+}
+
+.ispx-btn--ghost:hover {
+  border-color: currentColor;
+  transform: translateY(-1px);
+}
+
+.ispx-signal__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 1.2rem 0 0;
+}
+
+.ispx-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.55rem;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+/* ----------------------------- Card grid ----------------------------- */
+
+.ispx-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1.1rem;
+  margin: 1.4rem 0 2.6rem;
+}
+
+.ispx-card {
+  padding: 1.1rem 1.2rem;
+  border: 1px solid rgba(127, 127, 127, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.ispx-card h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.ispx-card p {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}

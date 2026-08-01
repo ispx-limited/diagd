@@ -1,0 +1,31 @@
+# Single-instance diagd unit. Install the binary to /usr/local/bin/diagd,
+# adjust the arguments, then: systemctl enable --now diagd
+[Unit]
+Description=diagd CPE diagnostics test server (TR-143, TR-471)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/diagd serve \
+    -tr471-bandwidth 5000 \
+    -max-transfers 64 \
+    -instance %H \
+    -log-format json
+Restart=always
+RestartSec=2
+
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+MemoryDenyWriteExecute=yes
+CapabilityBoundingSet=
+SystemCallFilter=@system-service
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
