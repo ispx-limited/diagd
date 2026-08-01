@@ -8,7 +8,7 @@ hide:
 
 <h1 class="ispx-sr-only">diagd</h1>
 
-<p class="ispx-kicker">A network test server for CPE broadband diagnostics. Point TR-143 and TR-471 tests from your subscribers' devices at it, out of the box.</p>
+<p class="ispx-kicker">A network test server for CPE broadband diagnostics. Point TR-143 and TR-471 tests from subscriber devices at it, out of the box.</p>
 
 <div class="ispx-actions" markdown>
 [Get started](guides/quickstart.md){ .ispx-btn .ispx-btn--primary }
