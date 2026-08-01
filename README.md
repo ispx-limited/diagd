@@ -37,7 +37,7 @@ go build ./cmd/diagd
 Then `curl -o /dev/null http://localhost:8080/100MB.bin` for a download
 test, or `udpst -d localhost` with the
 [OB-UDPST](https://github.com/BroadbandForum/obudpst) client for a capacity
-test. See the [documentation](https://ispx-limited.github.io/diagd/) for
+test. See the [documentation](https://docs.diagd.ispx.co/) for
 the architecture and the deployment reference designs, from a single box
 to an anycast fleet; sources are in `docs/`.
 

@@ -1,6 +1,6 @@
 site_name: diagd
 site_description: A network test server for CPE broadband diagnostics, implementing the server side of TR-143 and TR-471.
-site_url: https://ispx-limited.github.io/diagd/
+site_url: https://docs.diagd.ispx.co/
 copyright: Copyright &copy; ISPX LIMITED
 
 theme:
