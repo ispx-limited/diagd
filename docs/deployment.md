@@ -17,6 +17,8 @@ from a single box to a distributed fleet.
 | TR-471 test connections | ephemeral, or `-tr471-test-ports min-max` | UDP | subscribers |
 | ops (`/metrics`, `/healthz`) | `:9143` | TCP | management only |
 
+![TR-471 setup uses the control port, the test moves to a second port, and per-flow hashing can send it to the wrong instance](assets/images/tr471-port-split.png)
+
 Two TR-471 specifics matter for firewalls:
 
 - Each test runs on a new server-side UDP port. With stateful firewalls,
@@ -101,6 +103,8 @@ rings generously, and keep irqbalance from fighting your affinity layout.
 The most robust scale-out mechanism is the one built into the protocols:
 give every CPE a list of instances instead of one address.
 
+![A CPE testing with one flow per instance across two servers, succeeding despite one instance being down](assets/images/server-list-fleet.png)
+
 - TR-471: udpst clients accept multiple servers and open one flow per
   instance (`udpst -d -B 1000 s1 s2 s3`), aggregating the result. A
   minimum connection count (`-C`) lets a test succeed with an instance
@@ -124,6 +128,8 @@ composes with server lists: a name per instance group, several names per
 region.
 
 ## BGP anycast
+
+![Three POPs announcing the same anycast address, one withdrawn on health check failure, traffic exiting to the nearest healthy POP](assets/images/anycast.png)
 
 Anycast gives every region one well-known address, with routing delivering
 clients to the nearest healthy site. Its fit differs per protocol:

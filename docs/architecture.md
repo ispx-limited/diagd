@@ -12,6 +12,8 @@ binary:
 
 ## Who does what
 
+![The controller provisions and triggers, the CPE runs the test against diagd, results return to the controller, diagd emits test events](assets/images/three-party-model.png)
+
 A diagnostic involves three parties:
 
 1. The ACS (TR-069) or USP controller decides that a device should run a
@@ -44,6 +46,8 @@ test. With `-log-format json` these are machine-readable records containing:
 - `ref`: the correlation token, for HTTP tests.
 - byte counts, duration, and for TR-471 the direction, maximum rate,
   datagram and loss counts.
+
+![The ref token travels from the ACS through the CPE test to the diagd event, and joins the records in the log store](assets/images/ref-correlation.png)
 
 The `ref` token is the correlation mechanism between controller and server
 records. The controller owns the URL it provisions, so it can embed a
