@@ -28,8 +28,10 @@ interop: ## Run the OB-UDPST reference client interoperability suite
 docs: .venv/bin/mkdocs ## Build the documentation site strictly
 	.venv/bin/mkdocs build --strict
 
-docs-serve: .venv/bin/mkdocs ## Serve the documentation locally on 127.0.0.1:8000
-	.venv/bin/mkdocs serve
+DOCS_ADDR ?= 127.0.0.1:8000
+
+docs-serve: .venv/bin/mkdocs ## Serve the documentation locally (override with DOCS_ADDR=host:port)
+	.venv/bin/mkdocs serve -a $(DOCS_ADDR)
 
 clean: ## Remove build artifacts
 	rm -rf diagd site .venv
