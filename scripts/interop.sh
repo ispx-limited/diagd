@@ -37,10 +37,10 @@ fi
 echo "building diagd"
 go build -o "$WORK/diagd" ./cmd/diagd
 
-"$WORK/diagd" serve -http "" -echo "" -tr471 "127.0.0.1:$PORT" \
+"$WORK/diagd" serve -http "" -echo "" -ops "" -tr471 "127.0.0.1:$PORT" \
     -tr471-bandwidth 2000 >"$WORK/server.log" 2>&1 &
 SERVER_PIDS+=($!)
-"$WORK/diagd" serve -http "" -echo "" -tr471 "127.0.0.1:$AUTH_PORT" \
+"$WORK/diagd" serve -http "" -echo "" -ops "" -tr471 "127.0.0.1:$AUTH_PORT" \
     -tr471-key interoptest >"$WORK/server-auth.log" 2>&1 &
 SERVER_PIDS+=($!)
 sleep 1
