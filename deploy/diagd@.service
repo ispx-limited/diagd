@@ -1,0 +1,36 @@
+# Template unit for multi-instance hosts. Each instance reads
+# /etc/diagd/<name>.env, which must define DIAGD_ARGS and CPU_AFFINITY:
+#
+#   DIAGD_ARGS=-tr471 10.0.1.1:24601 -tr471-bandwidth 5000 \
+#       -http 10.0.1.1:8080 -echo 10.0.1.1:9000 -ops 127.0.0.1:9143 \
+#       -instance pop1-a -log-format json
+#   CPU_AFFINITY=0-13,28-41
+#
+# Match CPU_AFFINITY to the NUMA node that owns the instance's network
+# interface. Start with: systemctl enable --now diagd@pop1-a
+[Unit]
+Description=diagd instance %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=/etc/diagd/%i.env
+ExecStart=/usr/bin/taskset -c ${CPU_AFFINITY} /usr/local/bin/diagd serve $DIAGD_ARGS
+Restart=always
+RestartSec=2
+
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+MemoryDenyWriteExecute=yes
+CapabilityBoundingSet=
+SystemCallFilter=@system-service
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
