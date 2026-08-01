@@ -1,12 +1,18 @@
 # Quickstart
 
-## Prerequisites
+## Install
 
-- Go 1.25 or newer to build.
-- Linux for full functionality (kernel receive timestamps, batched UDP send
-  and receive). Other unixes compile and run with reduced timestamp accuracy.
+Download the latest release binary (Linux, amd64 or arm64, statically
+linked):
 
-## Build and run
+```
+curl -LO https://github.com/ispx-limited/diagd/releases/latest/download/diagd_linux_amd64.tar.gz
+tar xzf diagd_linux_amd64.tar.gz
+sudo install diagd_linux_amd64/diagd /usr/local/bin/
+diagd serve
+```
+
+Or build from source, with Go 1.25 or newer:
 
 ```
 git clone https://github.com/ispx-limited/diagd.git
@@ -14,6 +20,9 @@ cd diagd
 go build ./cmd/diagd
 ./diagd serve
 ```
+
+Linux is the supported platform; other unixes build and run with reduced
+timestamp accuracy on the echo responder.
 
 The daemon logs its listeners on startup: TR-143 HTTP on `:8080`, UDP Echo
 Plus on `:9000`, TR-471 control on `:24601`, and the operational endpoints

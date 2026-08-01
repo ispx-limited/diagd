@@ -29,6 +29,16 @@ golang.org/x/sys.
 
 ## Quickstart
 
+Download the latest release (Linux, amd64 or arm64):
+
+```
+curl -LO https://github.com/ispx-limited/diagd/releases/latest/download/diagd_linux_amd64.tar.gz
+tar xzf diagd_linux_amd64.tar.gz
+./diagd_linux_amd64/diagd serve
+```
+
+Or build from source with Go 1.25 or newer:
+
 ```
 go build ./cmd/diagd
 ./diagd serve

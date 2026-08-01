@@ -1,0 +1,39 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+      - name: test
+        run: go test ./...
+      - name: build
+        run: |
+          mkdir -p dist
+          for arch in amd64 arm64; do
+            out="dist/diagd_linux_${arch}"
+            mkdir -p "$out"
+            CGO_ENABLED=0 GOOS=linux GOARCH="$arch" \
+              go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME#v}" \
+              -o "$out/diagd" ./cmd/diagd
+            cp LICENSE NOTICE README.md "$out/"
+            tar -C dist -czf "dist/diagd_linux_${arch}.tar.gz" "diagd_linux_${arch}"
+          done
+          (cd dist && sha256sum *.tar.gz > checksums.txt)
+      - name: draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --draft --generate-notes --title "$GITHUB_REF_NAME" \
+            dist/*.tar.gz dist/checksums.txt
