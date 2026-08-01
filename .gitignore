@@ -33,3 +33,6 @@ go.work.sum
 
 # mkdocs build output
 site/
+
+# docs virtualenv
+.venv/

@@ -21,11 +21,15 @@ run: ## Run the server locally with debug logging
 interop: ## Run the OB-UDPST reference client interoperability suite
 	./scripts/interop.sh
 
-docs: ## Build the documentation site strictly (needs mkdocs, see requirements.txt)
-	mkdocs build --strict
+.venv/bin/mkdocs: requirements.txt
+	python3 -m venv .venv
+	.venv/bin/pip install -q -r requirements.txt
 
-docs-serve: ## Serve the documentation locally on 127.0.0.1:8000
-	mkdocs serve
+docs: .venv/bin/mkdocs ## Build the documentation site strictly
+	.venv/bin/mkdocs build --strict
+
+docs-serve: .venv/bin/mkdocs ## Serve the documentation locally on 127.0.0.1:8000
+	.venv/bin/mkdocs serve
 
 clean: ## Remove build artifacts
-	rm -rf diagd site
+	rm -rf diagd site .venv
