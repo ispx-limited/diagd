@@ -26,7 +26,7 @@ jobs:
             CGO_ENABLED=0 GOOS=linux GOARCH="$arch" \
               go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME#v}" \
               -o "$out/diagd" ./cmd/diagd
-            cp LICENSE NOTICE README.md "$out/"
+            cp LICENSE NOTICE README.md scripts/install.sh deploy/diagd.service "$out/"
             tar -C dist -czf "dist/diagd_linux_${arch}.tar.gz" "diagd_linux_${arch}"
           done
           (cd dist && sha256sum *.tar.gz > checksums.txt)

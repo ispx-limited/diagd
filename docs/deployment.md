@@ -171,6 +171,12 @@ route.
 
 ## Recipes
 
+Release tarballs include `install.sh`, which installs the binary and, on
+systemd machines, the single-instance unit below. Without systemd, diagd
+needs nothing special from a supervisor: it is one foreground process,
+logs to stderr, and stops cleanly on SIGTERM, so OpenRC, runit, s6,
+supervisord, and container runtimes all manage it directly.
+
 - `deploy/diagd.service`: hardened single-instance systemd unit.
 - `deploy/diagd@.service`: template unit for multi-instance hosts, with
   per-instance environment files and CPU affinity.

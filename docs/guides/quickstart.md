@@ -1,15 +1,14 @@
 # Quickstart
 
-## Install
+## Try it
 
-Download the latest release binary (Linux, amd64 or arm64, statically
-linked):
+Download the latest release (Linux, amd64 or arm64, statically linked) and
+run it in the foreground:
 
 ```
 curl -LO https://github.com/ispx-limited/diagd/releases/latest/download/diagd_linux_amd64.tar.gz
 tar xzf diagd_linux_amd64.tar.gz
-sudo install diagd_linux_amd64/diagd /usr/local/bin/
-diagd serve
+./diagd_linux_amd64/diagd serve
 ```
 
 Or build from source, with Go 1.25 or newer:
@@ -23,6 +22,27 @@ go build ./cmd/diagd
 
 Linux is the supported platform; other unixes build and run with reduced
 timestamp accuracy on the echo responder.
+
+## Install as a service
+
+The release includes an installer that puts the binary in
+`/usr/local/bin` and, when the machine runs systemd, installs the
+hardened service unit:
+
+```
+sudo ./diagd_linux_amd64/install.sh
+sudo systemctl enable --now diagd
+```
+
+Edit the unit (`systemctl edit diagd`) to set your flags: instance name,
+bandwidth budget, allow list. On upgrades the installer never overwrites
+an edited unit; it writes the new version alongside as
+`diagd.service.new` and tells you to compare.
+
+Without systemd, the installer installs the binary only. diagd is a
+plain foreground process that logs to stderr and stops cleanly on
+SIGTERM, so any supervisor works: OpenRC, runit, s6, supervisord, or a
+container runtime.
 
 The daemon logs its listeners on startup: TR-143 HTTP on `:8080`, UDP Echo
 Plus on `:9000`, TR-471 control on `:24601`, and the operational endpoints
