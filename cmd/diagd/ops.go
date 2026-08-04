@@ -28,7 +28,22 @@ func (o *opsState) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /metrics", o.metrics)
 	mux.HandleFunc("GET /healthz", o.healthz)
+	mux.HandleFunc("GET /live", o.liveTransfers)
 	return mux
+}
+
+// liveTransfers reports every test currently on the wire, as measured
+// from this side of the TCP stream. Callers that minted a ?ref= tag get
+// exact attribution; bytes over elapsed_ms is the average rate so far.
+// TR-143 clients only report at completion, so this is how an
+// orchestrator shows a live needle without inventing numbers.
+func (o *opsState) liveTransfers(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	transfers := []tr143.LiveTransfer{}
+	if o.httpH != nil {
+		transfers = o.httpH.Live()
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{"transfers": transfers})
 }
 
 func (o *opsState) metrics(w http.ResponseWriter, r *http.Request) {
