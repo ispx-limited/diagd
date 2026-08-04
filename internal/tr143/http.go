@@ -374,7 +374,6 @@ Upload (PUT or POST): any path, body is discarded.
 `)
 }
 
-
 // liveCountingReader mirrors upload bytes into the live registry as they
 // arrive, so /live sees an upload's progress the same way it sees a
 // download's.
