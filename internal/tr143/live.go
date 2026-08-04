@@ -21,14 +21,22 @@ import (
 // event. An orchestrator that minted the ref gets exact attribution
 // even when many CPEs test at once behind the same NAT.
 
-// LiveTransfer is one in-flight test as seen from the server side.
+// LiveTransfer is one test as seen from the server side: in flight, or
+// finished within the grace window.
 type LiveTransfer struct {
 	Test      string `json:"test"`
 	Ref       string `json:"ref"`
 	Peer      string `json:"peer"`
 	Bytes     int64  `json:"bytes"`
 	ElapsedMS int64  `json:"elapsed_ms"`
+	Done      bool   `json:"done"`
 }
+
+// liveGrace is how long a finished transfer stays visible. A poller
+// sampling every second or two would otherwise race the transfer's end
+// and read an empty list one tick after reading real progress — the
+// final figures would exist nowhere except the moment they vanished.
+const liveGrace = 15 * time.Second
 
 type liveEntry struct {
 	test  string
@@ -36,6 +44,11 @@ type liveEntry struct {
 	peer  string
 	start time.Time
 	bytes atomic.Int64
+
+	// Set on completion; elapsed freezes here so the reported average
+	// stays the transfer's own, not diluted by the grace window.
+	done  bool
+	ended time.Time
 }
 
 type liveRegistry struct {
@@ -58,7 +71,8 @@ func (r *liveRegistry) begin(test, ref, peer string) (*liveEntry, func()) {
 	r.mu.Unlock()
 	return e, func() {
 		r.mu.Lock()
-		delete(r.live, id)
+		e.done = true
+		e.ended = time.Now()
 		r.mu.Unlock()
 	}
 }
@@ -67,13 +81,22 @@ func (r *liveRegistry) snapshot() []LiveTransfer {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	out := make([]LiveTransfer, 0, len(r.live))
-	for _, e := range r.live {
+	for id, e := range r.live {
+		if e.done && time.Since(e.ended) > liveGrace {
+			delete(r.live, id)
+			continue
+		}
+		elapsed := time.Since(e.start)
+		if e.done {
+			elapsed = e.ended.Sub(e.start)
+		}
 		out = append(out, LiveTransfer{
 			Test:      e.test,
 			Ref:       e.ref,
 			Peer:      e.peer,
 			Bytes:     e.bytes.Load(),
-			ElapsedMS: time.Since(e.start).Milliseconds(),
+			ElapsedMS: elapsed.Milliseconds(),
+			Done:      e.done,
 		})
 	}
 	return out
