@@ -62,6 +62,11 @@ TR-143 clients report once, at the end, which leaves an ACS showing a
 spinner for the length of a test. diagd is the other party to the same
 TCP stream, so it can report the transfer while it happens:
 
+![The ACS sets the test URL with a ref tag on the CPE, the CPE transfers
+against diagd, and the ACS polls diagd's live endpoint for that same ref
+once a second while the CPE's own figures arrive only at
+completion](docs/assets/images/live-progress-integration.png)
+
 ```
 GET :9143/live?ref=<your-run-id>
 ```

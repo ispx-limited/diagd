@@ -13,6 +13,11 @@ listener returns the tests currently on the wire.
 This is what lets an ACS or USP controller show a moving figure during a
 test without inventing one.
 
+![The ACS sets the test URL with a ref tag on the CPE, the CPE transfers
+against diagd, and the ACS polls diagd's live endpoint for that same ref
+once a second while the CPE's own figures arrive only at
+completion](../assets/images/live-progress-integration.png)
+
 ## Correlating a test to a run
 
 Attribution is transactional, not per device. A peer address is who the
