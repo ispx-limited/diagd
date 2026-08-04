@@ -32,16 +32,44 @@ func (o *opsState) handler() http.Handler {
 	return mux
 }
 
-// liveTransfers reports every test currently on the wire, as measured
-// from this side of the TCP stream. Callers that minted a ?ref= tag get
-// exact attribution; bytes over elapsed_ms is the average rate so far.
-// TR-143 clients only report at completion, so this is how an
-// orchestrator shows a live needle without inventing numbers.
+// liveTransfers reports tests on the wire (or finished within the
+// grace window), as measured from this side of the TCP stream. TR-143
+// clients only report at completion, so this is how an orchestrator
+// shows a live needle without inventing numbers.
+//
+// Attribution is transactional, not per-device: ?ref= filters to the
+// transfers carrying that tag, which an orchestrator mints per run and
+// stitches into the test URL. A peer address is who the packets came
+// from, which NAT makes ambiguous; a ref is which test this is, which
+// nothing else can collide with. ?peer= filters by source IP for
+// operators debugging by hand.
 func (o *opsState) liveTransfers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	transfers := []tr143.LiveTransfer{}
 	if o.httpH != nil {
 		transfers = o.httpH.Live()
+	}
+	if ref := r.URL.Query().Get("ref"); ref != "" {
+		kept := transfers[:0]
+		for _, t := range transfers {
+			if t.Ref == ref {
+				kept = append(kept, t)
+			}
+		}
+		transfers = kept
+	}
+	if peer := r.URL.Query().Get("peer"); peer != "" {
+		kept := transfers[:0]
+		for _, t := range transfers {
+			host := t.Peer
+			if i := strings.LastIndex(host, ":"); i > 0 {
+				host = host[:i]
+			}
+			if host == peer {
+				kept = append(kept, t)
+			}
+		}
+		transfers = kept
 	}
 	_ = json.NewEncoder(w).Encode(map[string]any{"transfers": transfers})
 }
