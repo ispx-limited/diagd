@@ -45,5 +45,6 @@ nav:
   - Home: index.md
   - Guides:
       - Quickstart: guides/quickstart.md
+      - Live progress: guides/live-progress.md
   - Architecture: architecture.md
   - Deployment: deployment.md
