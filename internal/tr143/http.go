@@ -52,6 +52,8 @@ type HTTPHandler struct {
 	bytesSent     atomic.Uint64
 	bytesReceived atomic.Uint64
 	active        atomic.Int64
+
+	liveReg liveRegistry
 }
 
 // HTTPStats is a snapshot of transfer counters.
@@ -268,6 +270,8 @@ func (h *HTTPHandler) downloadSized(w http.ResponseWriter, r *http.Request, size
 
 	start := time.Now()
 	var sent int64
+	lt, done := h.liveReg.begin("http_download", r.URL.Query().Get("ref"), r.RemoteAddr)
+	defer done()
 	defer func() {
 		h.downloads.Add(1)
 		h.bytesSent.Add(uint64(sent))
@@ -280,6 +284,7 @@ func (h *HTTPHandler) downloadSized(w http.ResponseWriter, r *http.Request, size
 		}
 		wrote, err := w.Write(payloadBlock[:n])
 		sent += int64(wrote)
+		lt.bytes.Store(sent)
 		if err != nil {
 			// Client teardown mid-transfer is normal (timeouts, aborted
 			// tests); not a server error.
@@ -312,10 +317,13 @@ func (h *HTTPHandler) downloadTimed(w http.ResponseWriter, r *http.Request, seco
 	start := time.Now()
 	deadline := start.Add(d)
 	var sent int64
+	lt, done := h.liveReg.begin("http_download_timed", r.URL.Query().Get("ref"), r.RemoteAddr)
+	defer done()
 	complete := true
 	for time.Now().Before(deadline) {
 		n, err := w.Write(payloadBlock)
 		sent += int64(n)
+		lt.bytes.Store(sent)
 		if err != nil {
 			// Expected end of a generic-mode time-based test: the client
 			// resets the connection when its duration elapses (A.6).
@@ -339,7 +347,9 @@ func (h *HTTPHandler) upload(w http.ResponseWriter, r *http.Request) {
 	defer h.release()
 
 	start := time.Now()
-	n, err := io.Copy(io.Discard, r.Body)
+	lt, done := h.liveReg.begin("http_upload", r.URL.Query().Get("ref"), r.RemoteAddr)
+	defer done()
+	n, err := io.Copy(io.Discard, &liveCountingReader{r: r.Body, lt: lt})
 	h.uploads.Add(1)
 	h.bytesReceived.Add(uint64(n))
 	if err != nil {
@@ -362,4 +372,21 @@ Download (GET):
 
 Upload (PUT or POST): any path, body is discarded.
 `)
+}
+
+
+// liveCountingReader mirrors upload bytes into the live registry as they
+// arrive, so /live sees an upload's progress the same way it sees a
+// download's.
+type liveCountingReader struct {
+	r  io.Reader
+	lt *liveEntry
+	n  int64
+}
+
+func (c *liveCountingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.n += int64(n)
+	c.lt.bytes.Store(c.n)
+	return n, err
 }
