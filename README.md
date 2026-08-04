@@ -56,11 +56,39 @@ test. See the [documentation](https://docs.diagd.ispx.co/) for
 the architecture and the deployment reference designs, from a single box
 to an anycast fleet; sources are in `docs/`.
 
+## Live progress
+
+TR-143 clients report once, at the end, which leaves an ACS showing a
+spinner for the length of a test. diagd is the other party to the same
+TCP stream, so it can report the transfer while it happens:
+
+![The ACS sets the test URL with a ref tag on the CPE, the CPE transfers
+against diagd, and the ACS polls diagd's live endpoint for that same ref
+once a second while the CPE's own figures arrive only at
+completion](docs/assets/images/live-progress-integration.png)
+
+```
+GET :9143/live?ref=<your-run-id>
+```
+
+Put your own identifier in the test URL as `?ref=`, and diagd carries it
+on the in-flight record and the completion event, so a caller filters
+`/live` down to exactly the test it started. Each entry gives `bytes` and
+`elapsed_ms`; bytes over elapsed is the average rate so far. Finished
+transfers stay for 15 seconds flagged `done`, so a poller cannot race the
+end of a test and lose the final counts.
+
+The CPE's own TR-143 result stays authoritative. This is for showing
+progress, and for the case where firmware runs a test correctly and then
+files an empty report. See the
+[live progress guide](https://docs.diagd.ispx.co/guides/live-progress/).
+
 ## What it deliberately does not do
 
 - Store test results. Results are measured on the CPE and collected by the
   ACS or USP controller; diagd emits per-test events for the operator's
-  log pipeline and holds no state once a test ends.
+  log pipeline. In-flight transfers are held in memory for `/live` and
+  dropped 15 seconds after they end, so nothing survives beyond that.
 - TLS or authentication on TR-143 endpoints. The specification defines
   these tests over plain HTTP and deployed CPE clients expect that;
   restrict access with `-allow` CIDRs and network placement.
