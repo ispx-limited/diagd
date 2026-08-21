@@ -30,10 +30,16 @@ jobs:
             tar -C dist -czf "dist/diagd_linux_${arch}.tar.gz" "diagd_linux_${arch}"
           done
           (cd dist && sha256sum *.tar.gz > checksums.txt)
-      - name: draft release
+      # The release already exists when the tag comes from a merged release
+      # PR; a hand-pushed tag gets one created here.
+      - name: publish assets
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            --draft --generate-notes --title "$GITHUB_REF_NAME" \
-            dist/*.tar.gz dist/checksums.txt
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/*.tar.gz dist/checksums.txt --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --generate-notes --title "$GITHUB_REF_NAME" \
+              dist/*.tar.gz dist/checksums.txt
+          fi

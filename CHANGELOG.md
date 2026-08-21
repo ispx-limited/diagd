@@ -1,10 +1,8 @@
 # Changelog
 
-diagd follows semantic versioning.
+Changes that matter to operators running diagd, newest first.
 
-## Unreleased
-
-## 0.1.0
+## 0.1.0 (2026-08-02)
 
 Initial release.
 

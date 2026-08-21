@@ -36,3 +36,4 @@ site/
 
 # docs virtualenv
 .venv/
+__pycache__/
