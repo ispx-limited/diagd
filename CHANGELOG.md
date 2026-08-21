@@ -1,7 +1,5 @@
 # Changelog
 
-Changes that matter to operators running diagd, newest first.
-
 ## 0.1.0 (2026-08-02)
 
 Initial release.
